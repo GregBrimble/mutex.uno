@@ -1,0 +1,14 @@
+name = "mutex-uno-api"
+account_id = "5a883b414d4090a1442b20361f3c43a9"
+compatibility_date = "2023-03-11"
+main = "src/index.ts"
+workers_dev = false
+
+[durable_objects]
+bindings = [
+  { name = "MUTEX_API", class_name = "Mutex" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["Mutex"]

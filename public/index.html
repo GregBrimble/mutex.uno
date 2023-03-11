@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>mutex.uno</title>
+		<meta
+			name="description"
+			content="A free API service for acquiring mutexes."
+		/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	</head>
+	<body>
+		<header>
+			<h1>mutex.uno</h1>
+		</header>
+		<section>
+			<p>
+				A Mutex is a primitive which allows you to coordinate access to a some
+				shared resource by flagging when one actor is interacting with the
+				shared resource.
+			</p>
+			<p>
+				If two actors are trying to access a shared resource, the process is as
+				follows:
+			</p>
+			<ol>
+				<li>
+					An actor wishes to use the shared resource. The actor attempts to
+					acquire a Mutex with a key it shares with the other actors.
+				</li>
+				<li>
+					If successfully acquired, the actor proceeds to interact with the
+					shared resource. If unsuccessful, the actor waits a period of time
+					before trying again.
+				</li>
+				<li>
+					Once actor is finished with the shared resource, it releases the
+					Mutex. This allows other actors to now access the shared resource.
+				</li>
+			</ol>
+			<p>Further reading:</p>
+			<ul>
+				<li>
+					<a
+						href="https://en.wikipedia.org/wiki/Mutual_exclusion"
+						target="_blank"
+						rel="noopener noreferrer"
+						>Wikipedia | Mutual exclusion</a
+					>
+				</li>
+			</ul>
+			<p>
+				<a href="https://mutex.uno/">mutex.uno</a> is a free API providing
+				access to Mutexes. Please note that all access is unauthenticated and
+				anyone can lock and release any Mutex. Do not use this for anything
+				where you need to guarantee a lock from outside interference. Contact
+				<a href="mailto:mutex@gregbrimble.com?subject=mutex.uno"
+					>Greg Brimble</a
+				>
+				if you are interested in an authenticated service.
+			</p>
+			<p>
+				Backed by
+				<a
+					href="https://developers.cloudflare.com/workers/runtime-apis/durable-objects/"
+					target="_blank"
+					rel="noopener noreferrer"
+					>Cloudflare Workers Durable Objects</a
+				>.
+			</p>
+		</section>
+		<article>
+			<h2>API</h2>
+			<p>
+				Any endpoint may additionaly return, at any time, two other responses:
+			</p>
+			<dl>
+				<dt><code>429 Too Many Requests</code></dt>
+				<dd>
+					Returned when a Mutex could not be queried. This is usually due to too
+					many requests for a single Mutex key.
+				</dd>
+				<dt><code>502 Bad Gateway</code></dt>
+				<dd>
+					Returned when a Mutex could not be queried because of an upstream
+					isssue.
+				</dd>
+			</dl>
+			<h3><code>POST /api/:mutex-key</code></h3>
+			<p>Attempts to acquire a Mutex with a given <code>:mutex-key</code>.</p>
+			<p>
+				Returns a <code>201 Created</code> response when a Mutex has been
+				successfully acquired and a <code>409 Conflict</code> when the Mutex was
+				already locked.
+			</p>
+			<p>
+				In advanced use, you can specify an <code>If-Match</code> header to
+				override the default behavior. If the value of the
+				<code>If-Match</code> header is equal to the current Mutex's
+				<code>ETag</code> header, or if there is no current Mutex, the existing
+				Mutex is overwritten with a new Mutex for the current request. This is
+				an alternative to releasing the Mutex with a
+				<code>DELETE /:mutex-key</code> request and then subsequently acquiring
+				a new one with a <code>POST /:mutex-key</code> request, which doesn't
+				risk the possibility of another actor acquiring a Mutex between the two
+				requests. If the <code>If-Match</code> header is not equal to the
+				current Mutex's <code>ETag</code> header, the request will fail with a
+				<code>412 Precondition Failed</code> response.
+			</p>
+			<dl>
+				<dt><code>201 Created</code></dt>
+				<dd>
+					<p>Returns an <code>application/json</code> response body.</p>
+					<dl>
+						<dt><code>id</code></dt>
+						<dd>A string of a UUID v4 which uniquely identifies the Mutex.</dd>
+						<dt><code>timestamp</code></dt>
+						<dd>
+							A string in simplified extended ISO format (ISO 8601) of when the
+							Mutex was acquired.
+						</dd>
+					</dl>
+					<h4>Example</h4>
+					<pre><code>{
+  "id": "00000000-0000-4000-0000-000000000000",
+  "timestamp": "1970-01-01T00:00:00.000Z"
+}</code></pre>
+					<p>
+						Includes an <code>ETag</code> response header which can be used in
+						subsequent advanced requests, and a
+						<code>Last-Modified</code> header, equivalent to the
+						<code>timestamp</code> value found in the response body.
+					</p>
+				</dd>
+				<dt><code>409 Conflict</code></dt>
+				<dd>
+					<p>Returns an <code>application/json</code> response body.</p>
+					<dl>
+						<dt><code>id</code></dt>
+						<dd>
+							A string of a UUID v4 which uniquely identifies the original
+							Mutex.
+						</dd>
+						<dt><code>timestamp</code></dt>
+						<dd>
+							A string in simplified extended ISO format (ISO 8601) of when the
+							Mutex was previously acquired.
+						</dd>
+					</dl>
+					<h4>Example</h4>
+					<pre><code>{
+  "id": "00000000-0000-4000-0000-000000000000",
+  "timestamp": "1970-01-01T00:00:00.000Z"
+}</code></pre>
+					<p>
+						Includes an <code>ETag</code> response header which can be used in
+						subsequent advanced requests, and a
+						<code>Last-Modified</code> header, equivalent to the
+						<code>timestamp</code> value found in the response body.
+					</p>
+				</dd>
+				<dt><code>412 Precondition Failed</code></dt>
+				<dd>
+					<p>Returns an <code>application/json</code> response body.</p>
+					<dl>
+						<dt><code>id</code></dt>
+						<dd>
+							A string of a UUID v4 which uniquely identifies the original
+							Mutex.
+						</dd>
+						<dt><code>timestamp</code></dt>
+						<dd>
+							A string in simplified extended ISO format (ISO 8601) of when the
+							Mutex was previously acquired.
+						</dd>
+					</dl>
+					<h4>Example</h4>
+					<pre><code>{
+  "id": "00000000-0000-4000-0000-000000000000",
+  "timestamp": "1970-01-01T00:00:00.000Z"
+}</code></pre>
+					<p>
+						Includes an <code>ETag</code> response header which can be used in
+						subsequent advanced requests, and a
+						<code>Last-Modified</code> header, equivalent to the
+						<code>timestamp</code> value found in the response body.
+					</p>
+				</dd>
+			</dl>
+			<h3><code>DELETE /api/:mutex-key</code></h3>
+			<p>Attempts to release a Mutex with a given <code>:mutex-key</code>.</p>
+			<p>
+				Returns a <code>204 No Content</code> response when the Mutex has been
+				successfully released and a <code>404 Not Found</code> response when
+				there was no Mutex to release.
+			</p>
+			<p>
+				In advanced use, you can specify an <code>If-Match</code> header to
+				override the default behavior. If the value of the
+				<code>If-Match</code> header is equal to the current Mutex's
+				<code>ETag</code> header, the existing Mutex is released, as above. If
+				the <code>If-Match</code> header is not equal to the current Mutex's
+				<code>ETag</code> header, the request will fail with a
+				<code>412 Precondition Failed</code> response. This can be used to
+				ensure that only a specific given Mutex is released.
+			</p>
+			<dl>
+				<dt><code>204 No Content</code></dt>
+				<dd><p>No body.</p></dd>
+				<dt><code>404 Not Found</code></dt>
+				<dd><p>No body.</p></dd>
+				<dt><code>412 Precondition Failed</code></dt>
+				<dd>
+					<p>Returns an <code>application/json</code> response body.</p>
+					<dl>
+						<dt><code>id</code></dt>
+						<dd>
+							A string of a UUID v4 which uniquely identifies the original
+							Mutex.
+						</dd>
+						<dt><code>timestamp</code></dt>
+						<dd>
+							A string in simplified extended ISO format (ISO 8601) of when the
+							Mutex was previously acquired.
+						</dd>
+					</dl>
+					<h4>Example</h4>
+					<pre><code>{
+  "id": "00000000-0000-4000-0000-000000000000",
+  "timestamp": "1970-01-01T00:00:00.000Z"
+}</code></pre>
+					<p>
+						Includes an <code>ETag</code> response header which can be used in
+						subsequent advanced requests, and a
+						<code>Last-Modified</code> header, equivalent to the
+						<code>timestamp</code> value found in the response body.
+					</p>
+				</dd>
+			</dl>
+			<h3><code>GET /api/:mutex-key</code></h3>
+			<p>Reports the status of a Mutex with a given <code>:mutex-key</code>.</p>
+			<p>
+				Returns a <code>200 OK</code> response when the Mutex was locked and a
+				<code>404 Not Found</code> response when there was no Mutex.
+			</p>
+			<dl>
+				<dt><code>200 OK</code></dt>
+				<dd>
+					<p>Returns an <code>application/json</code> response body.</p>
+					<dl>
+						<dt><code>id</code></dt>
+						<dd>A string of a UUID v4 which uniquely identifies the Mutex.</dd>
+						<dt><code>timestamp</code></dt>
+						<dd>
+							A string in simplified extended ISO format (ISO 8601) of when the
+							Mutex was acquired.
+						</dd>
+					</dl>
+					<h4>Example</h4>
+					<pre><code>{
+  "id": "00000000-0000-4000-0000-000000000000",
+  "timestamp": "1970-01-01T00:00:00.000Z"
+}</code></pre>
+					<p>
+						Includes an <code>ETag</code> response header which can be used in
+						subsequent advanced requests, and a
+						<code>Last-Modified</code> header, equivalent to the
+						<code>timestamp</code> value found in the response body.
+					</p>
+				</dd>
+				<dt><code>404 Not Found</code></dt>
+				<dd><p>No body.</p></dd>
+			</dl>
+		</article>
+		<footer>
+			<hr />
+			<nav>
+				<ul>
+					<li>
+						<a
+							href="https://github.com/GregBrimble/mutex.uno"
+							target="_blank"
+							rel="noopener noreferrer"
+							>GitHub</a
+						>
+					</li>
+					<li>
+						<a
+							href="https://gregbrimble.com/"
+							target="_blank"
+							rel="noopener noreferrer"
+							>gregbrimble.com</a
+						>
+					</li>
+				</ul>
+			</nav>
+		</footer>
+	</body>
+</html>
